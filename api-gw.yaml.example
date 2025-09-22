@@ -1,0 +1,50 @@
+openapi: 3.0.0
+info:
+  title: tg-bot-gw
+  version: 1.0.0
+  description: API Gateway для Telegram бота
+paths:
+  /:
+    post:
+      summary: Telegram webhook endpoint
+      description: Принимает обновления от Telegram
+      x-yc-apigateway-integration:
+        type: serverless_containers
+        container_id: SERVERLESS_CONTAINER_ID
+        service_account_id: SERVICE_ACCOUNT_ID
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+        '400':
+          description: Bad Request
+        '500':
+          description: Internal Server Error
+  /health:
+    get:
+      summary: Health check
+      description: Проверка состояния сервиса
+      x-yc-apigateway-integration:
+        type: serverless_containers
+        container_id: SERVERLESS_CONTAINER_ID
+        service_account_id: SERVICE_ACCOUNT_ID
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  bot_initialized:
+                    type: boolean

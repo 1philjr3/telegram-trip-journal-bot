@@ -161,3 +161,22 @@ Desktop.ini
 *.swp
 *.swo
 *~
+# Python
+__pycache__/
+*.pyc
+
+# Env
+.env
+config.env
+.env.local
+
+# Secrets
+service_account.json
+users.json
+
+# OS
+.DS_Store
+
+# Build
+*.log
+
