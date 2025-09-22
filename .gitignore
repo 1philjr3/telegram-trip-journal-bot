@@ -180,3 +180,4 @@ users.json
 # Build
 *.log
 
+temp_repo/
