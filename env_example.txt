@@ -1,0 +1,13 @@
+# Telegram Bot Token (получить от @BotFather)
+TELEGRAM_BOT_TOKEN=1234567890:AAFfD8lEyD5oZkN5GfCl-QRyDxq7QOlSLhM
+
+# Google Sheets настройки
+GOOGLE_SA_JSON_PATH=./service_account.json
+GOOGLE_SHEET_ID=1AbCdE2FgHiJ3KlMnO4PqR5StUvW6XyZ7a8b
+GOOGLE_SHEET_NAME=Лист1
+
+# Временная зона
+TIMEZONE=Europe/Moscow
+
+# ID администраторов (через запятую)
+ADMIN_IDS=123456789,987654321
