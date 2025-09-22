@@ -161,23 +161,21 @@ Desktop.ini
 *.swp
 *.swo
 *~
-# Python
+# Byte-compiled / cache
 __pycache__/
-*.pyc
+*.py[cod]
 
 # Env
 .env
+*.env
 config.env
-.env.local
 
 # Secrets
 service_account.json
 users.json
 
-# OS
+# OS/IDE
 .DS_Store
-
-# Build
-*.log
-
-temp_repo/
+.venv/
+.idea/
+.vscode/
