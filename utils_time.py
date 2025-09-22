@@ -98,7 +98,8 @@ class TimeUtils:
         elif dt.tzinfo != self.utc:
             dt = dt.astimezone(self.utc)
         
-        return dt.isoformat() + "Z"
+        # Убираем информацию о временной зоне и добавляем Z
+        return dt.replace(tzinfo=None).isoformat() + "Z"
 
     def parse_sheets_datetime(self, date_str: str, time_str: str) -> Optional[datetime]:
         """Парсит дату и время из Google Sheets"""
