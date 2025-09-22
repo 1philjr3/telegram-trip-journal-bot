@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: telegram-trip-journal-bot
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python3 bot.py
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: GOOGLE_SA_JSON_PATH
+        value: ./service_account.json
+      - key: GOOGLE_SHEET_ID
+        sync: false
+      - key: GOOGLE_SHEET_NAME
+        value: Лист1
+      - key: TIMEZONE
+        value: Europe/Moscow
+      - key: ADMIN_IDS
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
+        sync: false

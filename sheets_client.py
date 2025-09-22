@@ -18,10 +18,22 @@ class GoogleSheetsClient:
         self.sheet_name = sheet_name
         
         # Инициализация клиента Google Sheets
-        credentials = service_account.Credentials.from_service_account_file(
-            service_account_path,
-            scopes=["https://www.googleapis.com/auth/spreadsheets"]
-        )
+        # Проверяем, есть ли JSON в переменной окружения (для Render)
+        google_sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+        if google_sa_json:
+            import json
+            from google.oauth2 import service_account as sa
+            credentials_info = json.loads(google_sa_json)
+            credentials = sa.Credentials.from_service_account_info(
+                credentials_info,
+                scopes=["https://www.googleapis.com/auth/spreadsheets"]
+            )
+        else:
+            # Локальный файл
+            credentials = service_account.Credentials.from_service_account_file(
+                service_account_path,
+                scopes=["https://www.googleapis.com/auth/spreadsheets"]
+            )
         self.service = build("sheets", "v4", credentials=credentials)
         
         # Убеждаемся, что заголовки существуют
