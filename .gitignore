@@ -179,3 +179,5 @@ users.json
 .venv/
 .idea/
 .vscode/
+
+temp_repo/
