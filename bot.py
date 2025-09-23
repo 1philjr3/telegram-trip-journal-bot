@@ -33,7 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Инициализация компонентов
-bot = Bot(token=os.getenv("TELEGRAM_BOT_TOKEN"))
+bot = Bot(token=os.getenv("TELEGRAM_APITOKEN"))
 dp = Dispatcher(storage=MemoryStorage())
 
 # Глобальные объекты
