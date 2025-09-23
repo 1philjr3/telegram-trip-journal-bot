@@ -93,31 +93,25 @@ jobs:
           OCR_PSM: ${{ secrets.OCR_PSM }}
         run: |
           IMAGE="cr.yandex/${YC_IMAGE_REGISTRY_ID}/${SERVERLESS_CONTAINER_NAME}:latest"
-          
-          # Create environment file
-          cat > env.yaml << EOF
-          TELEGRAM_APITOKEN: "${TELEGRAM_APITOKEN}"
-          TELEGRAM_BOT_TOKEN: "${TELEGRAM_APITOKEN}"
-          GOOGLE_SA_JSON_PATH: "./service_account.json"
-          GOOGLE_SHEET_ID: "${GOOGLE_SHEET_ID}"
-          GOOGLE_SHEET_NAME: "${GOOGLE_SHEET_NAME}"
-          TIMEZONE: "${TIMEZONE}"
-          ADMIN_IDS: "${ADMIN_IDS}"
-          FUEL_BARS: "${FUEL_BARS}"
-          LITERS_PER_BAR: "${LITERS_PER_BAR}"
-          THRESH_FUEL: "${THRESH_FUEL}"
-          MIN_CONFIDENCE: "${MIN_CONFIDENCE}"
-          ROI_ODO: "${ROI_ODO}"
-          ROI_FUEL: "${ROI_FUEL}"
-          OCR_LANG: "${OCR_LANG}"
-          OCR_PSM: "${OCR_PSM}"
-          EOF
-          
           yc serverless container revision deploy \
             --container-name "$SERVERLESS_CONTAINER_NAME" \
             --image "$IMAGE" \
             --service-account-id "$SERVICE_ACCOUNT_ID" \
-            --environment-file env.yaml \
+            --environment TELEGRAM_APITOKEN="${TELEGRAM_APITOKEN}" \
+            --environment TELEGRAM_BOT_TOKEN="${TELEGRAM_APITOKEN}" \
+            --environment GOOGLE_SA_JSON_PATH="./service_account.json" \
+            --environment GOOGLE_SHEET_ID="${GOOGLE_SHEET_ID}" \
+            --environment GOOGLE_SHEET_NAME="${GOOGLE_SHEET_NAME}" \
+            --environment TIMEZONE="${TIMEZONE}" \
+            --environment ADMIN_IDS="${ADMIN_IDS}" \
+            --environment FUEL_BARS="${FUEL_BARS}" \
+            --environment LITERS_PER_BAR="${LITERS_PER_BAR}" \
+            --environment THRESH_FUEL="${THRESH_FUEL}" \
+            --environment MIN_CONFIDENCE="${MIN_CONFIDENCE}" \
+            --environment ROI_ODO="${ROI_ODO}" \
+            --environment ROI_FUEL="${ROI_FUEL}" \
+            --environment OCR_LANG="${OCR_LANG}" \
+            --environment OCR_PSM="${OCR_PSM}" \
             --core-fraction 50 \
             --memory 1GB \
             --execution-timeout 300s \
