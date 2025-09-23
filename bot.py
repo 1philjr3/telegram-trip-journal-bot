@@ -9,7 +9,7 @@ from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, ContentType
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from dotenv import load_dotenv
 
@@ -45,6 +45,170 @@ sheets_client = GoogleSheetsClient(
     sheet_name=os.getenv("GOOGLE_SHEET_NAME", "Лист1")
 )
 
+# ==== Фото-поток: OCR одометра и делений топлива ====
+try:
+    from services.extract_panel import extract_from_image, PanelReading
+except Exception:
+    extract_from_image = None
+    PanelReading = None
+
+def get_env_roi(name: str, default: str) -> tuple:
+    val = os.getenv(name, default)
+    try:
+        x, y, w, h = [int(v.strip()) for v in val.split(',')]
+        return (x, y, w, h)
+    except Exception:
+        return tuple(int(v) for v in default.split(','))
+
+FUEL_BARS = int(os.getenv("FUEL_BARS", "8"))
+LITERS_PER_BAR = float(os.getenv("LITERS_PER_BAR", "6.25"))
+MIN_CONFIDENCE = float(os.getenv("MIN_CONFIDENCE", "0.6"))
+
+PHOTO_CONFIRM_PREFIX = "confirm_photo"
+PHOTO_MANUAL_PREFIX = "manual_photo"
+PHOTO_RETAKE_PREFIX = "retake_photo"
+
+def build_photo_confirm_kb(user_id: int, odo: int, bars: int) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✅ Верно", callback_data=f"{PHOTO_CONFIRM_PREFIX}:{user_id}:{odo}:{bars}")
+    kb.button(text="✏️ Ввести вручную", callback_data=f"{PHOTO_MANUAL_PREFIX}:{user_id}")
+    kb.button(text="📷 Перефото", callback_data=f"{PHOTO_RETAKE_PREFIX}:{user_id}")
+    kb.adjust(1, 2)
+    return kb.as_markup()
+
+@dp.message(F.photo)
+async def handle_photo(message: Message, state: FSMContext):
+    if extract_from_image is None:
+        await message.answer("OCR модуль не активен. Сообщите администратору.")
+        return
+
+    if not users_repo.is_registered(message.from_user.id):
+        await message.answer("❌ Сначала зарегистрируйтесь: /start")
+        return
+
+    try:
+        file = await bot.get_file(message.photo[-1].file_id)
+        file_bytes = await bot.download_file(file.file_path)
+        image_bytes = file_bytes.read()
+
+        reading: PanelReading = await asyncio.to_thread(extract_from_image, image_bytes)
+
+        if reading is None or reading.odometer_km is None or reading.fuel_bars is None:
+            await message.answer(
+                "Не смог разобрать показания. Можем перейти на ручной ввод?",
+                reply_markup=build_photo_confirm_kb(message.from_user.id, 0, 0)
+            )
+            return
+
+        liters = round(reading.fuel_bars * LITERS_PER_BAR, 2)
+
+        text = (
+            "Нашёл:\n"
+            f"• Пробег: <b>{reading.odometer_km}</b> км\n"
+            f"• Остаток: <b>{reading.fuel_bars}</b> × {LITERS_PER_BAR} = <b>{liters}</b> л\n\n"
+            "Всё верно?"
+        )
+
+        if reading.confidence < MIN_CONFIDENCE:
+            text = "<i>Низкая уверенность распознавания.</i>\n" + text
+
+        await message.answer(
+            text,
+            reply_markup=build_photo_confirm_kb(message.from_user.id, reading.odometer_km, reading.fuel_bars),
+            parse_mode="HTML"
+        )
+
+        await state.update_data(last_photo_file_id=message.photo[-1].file_id)
+
+    except Exception as e:
+        logger.error(f"Ошибка обработки фото: {e}")
+        await message.answer("❌ Ошибка обработки фото. Попробуйте ещё раз или введите вручную.")
+
+
+@dp.callback_query(F.data.startswith(PHOTO_CONFIRM_PREFIX + ":"))
+async def handle_photo_confirm(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    try:
+        _, uid, odo, bars = callback.data.split(":")
+        odo = int(odo)
+        bars = int(bars)
+        liters = round(bars * LITERS_PER_BAR, 2)
+
+        data = await state.get_data()
+        file_id = data.get("last_photo_file_id")
+
+        ok = await asyncio.to_thread(
+            sheets_client.append_measurement,
+            callback.from_user.id,
+            odo,
+            bars,
+            liters,
+            "photo",
+            file_id,
+        )
+        if ok:
+            await callback.message.edit_text(
+                f"✅ Записал. Одометр: <b>{odo}</b> км. Остаток: <b>{liters}</b> л.",
+                parse_mode="HTML"
+            )
+        else:
+            await callback.message.edit_text("❌ Не удалось сохранить запись. Попробуйте позже.")
+    except Exception as e:
+        logger.error(f"Ошибка подтверждения фото: {e}")
+        await callback.message.edit_text("❌ Ошибка сохранения.")
+
+
+@dp.callback_query(F.data.startswith(PHOTO_MANUAL_PREFIX + ":"))
+async def handle_photo_manual(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await callback.message.edit_text(
+        "Введите одометр (км) и число делений (0–8) одной строкой, напр.: 55698 6"
+    )
+    await state.set_state(PhotoStates.waiting_manual_odo_bars)
+    await state.update_data(photo_manual=True)
+
+
+@dp.message(F.text, StateFilter(PhotoStates.waiting_manual_odo_bars))
+async def handle_photo_manual_input(message: Message, state: FSMContext):
+    data = await state.get_data()
+    if not data.get("photo_manual"):
+        return
+
+    try:
+        parts = message.text.strip().split()
+        odo = int(parts[0])
+        bars = int(parts[1])
+        if bars < 0 or bars > FUEL_BARS:
+            raise ValueError
+        liters = round(bars * LITERS_PER_BAR, 2)
+        ok = await asyncio.to_thread(
+            sheets_client.append_measurement,
+            message.from_user.id,
+            odo,
+            bars,
+            liters,
+            "manual",
+            None,
+        )
+        if ok:
+            await message.answer(
+                f"✅ Записал. Одометр: <b>{odo}</b> км. Остаток: <b>{liters}</b> л.",
+                parse_mode="HTML"
+            )
+        else:
+            await message.answer("❌ Не удалось сохранить запись. Попробуйте позже.")
+    except Exception:
+        await message.answer("❌ Формат: 55698 6 (одометр и деления 0–8)")
+        return
+    finally:
+        await state.update_data(photo_manual=False)
+
+
+@dp.callback_query(F.data.startswith(PHOTO_RETAKE_PREFIX + ":"))
+async def handle_photo_retake(callback: CallbackQuery):
+    await callback.answer()
+    await callback.message.edit_text("📷 Пришлите новое фото приборной панели (без бликов, не под углом).")
+
 # Админы
 ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()]
 
@@ -65,6 +229,10 @@ class EditStates(StatesGroup):
     """Состояния FSM для редактирования записи"""
     waiting_field_choice = State()
     waiting_new_value = State()
+
+class PhotoStates(StatesGroup):
+    """Состояния FSM для фото-потока"""
+    waiting_manual_odo_bars = State()
 
 
 async def send_main_menu(message: Message):

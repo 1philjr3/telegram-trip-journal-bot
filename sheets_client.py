@@ -52,6 +52,63 @@ class GoogleSheetsClient:
             logger.error(f"Ошибка при работе с заголовками: {e}")
             raise
 
+    # ===== Доп. лист: Показания из фото/ручные =====
+    def ensure_measurements_header(self, sheet_name: str = "Показания") -> None:
+        """Проверяет и создает заголовки листа измерений (если нужен отдельный лист)."""
+        try:
+            headers = [
+                "timestamp", "author_tg_id", "odometer_km", "fuel_bars", "fuel_liters",
+                "source", "photo_file_id"
+            ]
+            result = self.service.spreadsheets().values().get(
+                spreadsheetId=self.sheet_id,
+                range=f"{sheet_name}!A1:G1"
+            ).execute()
+            values = result.get('values', [])
+            if not values or values[0] != headers:
+                logger.info("Создаем заголовки листа Показания")
+                self.service.spreadsheets().values().update(
+                    spreadsheetId=self.sheet_id,
+                    range=f"{sheet_name}!A1:G1",
+                    valueInputOption="RAW",
+                    body={"values": [headers]}
+                ).execute()
+        except HttpError as e:
+            logger.error(f"Ошибка заголовков листа Показания: {e}")
+
+    def append_measurement(self,
+                           author_tg_id: int,
+                           odometer_km: int,
+                           fuel_bars: int,
+                           fuel_liters: float,
+                           source: str,
+                           photo_file_id: str | None = None,
+                           sheet_name: str = "Показания") -> bool:
+        """Добавляет строку в лист Показания."""
+        from datetime import datetime
+        try:
+            self.ensure_measurements_header(sheet_name)
+            row = [
+                datetime.utcnow().isoformat() + "Z",
+                str(author_tg_id),
+                str(odometer_km),
+                str(fuel_bars),
+                f"{fuel_liters}",
+                source,
+                photo_file_id or ""
+            ]
+            self.service.spreadsheets().values().append(
+                spreadsheetId=self.sheet_id,
+                range=f"{sheet_name}!A1",
+                valueInputOption="RAW",
+                insertDataOption="INSERT_ROWS",
+                body={"values": [row]}
+            ).execute()
+            return True
+        except HttpError as e:
+            logger.error(f"Ошибка при добавлении Показания: {e}")
+            return False
+
     def append_row(self, trip_entry: TripEntry) -> bool:
         """Добавляет новую строку в таблицу"""
         try:
