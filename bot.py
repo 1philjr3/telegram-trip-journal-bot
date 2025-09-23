@@ -37,7 +37,11 @@ bot = Bot(token=os.getenv("TELEGRAM_BOT_TOKEN"))
 dp = Dispatcher(storage=MemoryStorage())
 
 # Глобальные объекты
-users_repo = UsersRepository()
+users_repo = UsersRepository(
+    service_account_path=os.getenv("GOOGLE_SA_JSON_PATH", "./service_account.json"),
+    sheet_id=os.getenv("GOOGLE_SHEET_ID"),
+    users_sheet_name="Пользователи"
+)
 time_utils = TimeUtils(os.getenv("TIMEZONE", "Europe/Moscow"))
 sheets_client = GoogleSheetsClient(
     service_account_path=os.getenv("GOOGLE_SA_JSON_PATH", "./service_account.json"),
