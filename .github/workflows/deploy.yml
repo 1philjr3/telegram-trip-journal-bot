@@ -93,11 +93,26 @@ jobs:
           OCR_PSM: ${{ secrets.OCR_PSM }}
         run: |
           IMAGE="cr.yandex/${YC_IMAGE_REGISTRY_ID}/${SERVERLESS_CONTAINER_NAME}:latest"
+          ENV_VARS="TELEGRAM_APITOKEN=${TELEGRAM_APITOKEN}"
+          ENV_VARS="${ENV_VARS},TELEGRAM_BOT_TOKEN=${TELEGRAM_APITOKEN}"
+          ENV_VARS="${ENV_VARS},GOOGLE_SA_JSON_PATH=./service_account.json"
+          ENV_VARS="${ENV_VARS},GOOGLE_SHEET_ID=${GOOGLE_SHEET_ID}"
+          ENV_VARS="${ENV_VARS},GOOGLE_SHEET_NAME=${GOOGLE_SHEET_NAME}"
+          ENV_VARS="${ENV_VARS},TIMEZONE=${TIMEZONE}"
+          ENV_VARS="${ENV_VARS},ADMIN_IDS=${ADMIN_IDS}"
+          ENV_VARS="${ENV_VARS},FUEL_BARS=${FUEL_BARS}"
+          ENV_VARS="${ENV_VARS},LITERS_PER_BAR=${LITERS_PER_BAR}"
+          ENV_VARS="${ENV_VARS},THRESH_FUEL=${THRESH_FUEL}"
+          ENV_VARS="${ENV_VARS},MIN_CONFIDENCE=${MIN_CONFIDENCE}"
+          ENV_VARS="${ENV_VARS},ROI_ODO=${ROI_ODO}"
+          ENV_VARS="${ENV_VARS},ROI_FUEL=${ROI_FUEL}"
+          ENV_VARS="${ENV_VARS},OCR_LANG=${OCR_LANG}"
+          ENV_VARS="${ENV_VARS},OCR_PSM=${OCR_PSM}"
           yc serverless container revision deploy \
             --container-name "$SERVERLESS_CONTAINER_NAME" \
             --image "$IMAGE" \
             --service-account-id "$SERVICE_ACCOUNT_ID" \
-            --environment="TELEGRAM_APITOKEN=${TELEGRAM_APITOKEN},TELEGRAM_BOT_TOKEN=${TELEGRAM_APITOKEN},GOOGLE_SA_JSON_PATH=./service_account.json,GOOGLE_SHEET_ID=${GOOGLE_SHEET_ID},GOOGLE_SHEET_NAME=${GOOGLE_SHEET_NAME},TIMEZONE=${TIMEZONE},ADMIN_IDS=${ADMIN_IDS},FUEL_BARS=${FUEL_BARS},LITERS_PER_BAR=${LITERS_PER_BAR},THRESH_FUEL=${THRESH_FUEL},MIN_CONFIDENCE=${MIN_CONFIDENCE},ROI_ODO=${ROI_ODO},ROI_FUEL=${ROI_FUEL},OCR_LANG=${OCR_LANG},OCR_PSM=${OCR_PSM}" \
+            --environment="$ENV_VARS" \
             --core-fraction 50 \
             --memory 1GB \
             --execution-timeout 300s \
