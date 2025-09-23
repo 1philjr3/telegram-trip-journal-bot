@@ -94,7 +94,7 @@ jobs:
         run: |
           IMAGE="cr.yandex/${YC_IMAGE_REGISTRY_ID}/${SERVERLESS_CONTAINER_NAME}:latest"
           yc serverless container revision deploy \
-            --container-name "$SERVERLESS_CONTAINER_NAME" \
+            --container-name "tg-bot" \
             --image "$IMAGE" \
             --service-account-id "$SERVICE_ACCOUNT_ID" \
             --environment TELEGRAM_APITOKEN="${TELEGRAM_APITOKEN}" \
