@@ -103,15 +103,5 @@ jobs:
             --execution-timeout 300s \
             --concurrency 8
 
-      - name: Set Telegram webhook (optional)
-        if: secrets.SERVERLESS_APIGW_URL != ''
-        shell: bash
-        env:
-          TELEGRAM_APITOKEN: ${{ secrets.TELEGRAM_APITOKEN }}
-          SERVERLESS_APIGW_URL: ${{ secrets.SERVERLESS_APIGW_URL }}
-        run: |
-          curl --request POST --url "https://api.telegram.org/bot${TELEGRAM_APITOKEN}/setWebhook" \
-            --header 'content-type: application/json' \
-            --data "{\"url\": \"${SERVERLESS_APIGW_URL}\"}"
 
 
