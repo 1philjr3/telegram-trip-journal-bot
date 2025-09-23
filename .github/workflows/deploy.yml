@@ -1,0 +1,117 @@
+name: Deploy to Yandex Cloud
+
+on:
+  push:
+    branches:
+      - yc-serverless-webhook
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Write Google service account JSON
+        shell: bash
+        env:
+          GOOGLE_SA_JSON: ${{ secrets.GOOGLE_SA_JSON }}
+        run: |
+          echo "$GOOGLE_SA_JSON" > service_account.json
+
+      - name: Write Yandex Cloud SA key
+        shell: bash
+        env:
+          YC_SA_KEY_JSON: ${{ secrets.YC_SA_KEY_JSON }}
+        run: |
+          echo "$YC_SA_KEY_JSON" > yc-key.json
+
+      - name: Install Yandex Cloud CLI
+        shell: bash
+        run: |
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
+          echo "${HOME}/yandex-cloud/bin" >> $GITHUB_PATH
+
+      - name: Configure YC CLI
+        shell: bash
+        env:
+          YC_CLOUD_ID: ${{ secrets.YC_CLOUD_ID }}
+          YC_FOLDER_ID: ${{ secrets.YC_FOLDER_ID }}
+        run: |
+          yc config profile create ci
+          yc config set cloud-id "$YC_CLOUD_ID"
+          yc config set folder-id "$YC_FOLDER_ID"
+          yc config set service-account-key yc-key.json
+          yc config list
+
+      - name: Login to Yandex Container Registry
+        shell: bash
+        run: |
+          yc container registry configure-docker
+
+      - name: Build Docker image
+        shell: bash
+        env:
+          YC_IMAGE_REGISTRY_ID: ${{ secrets.YC_IMAGE_REGISTRY_ID }}
+          SERVERLESS_CONTAINER_NAME: ${{ secrets.SERVERLESS_CONTAINER_NAME }}
+        run: |
+          IMAGE="cr.yandex/${YC_IMAGE_REGISTRY_ID}/${SERVERLESS_CONTAINER_NAME}"
+          docker build -t "$IMAGE:${GITHUB_SHA}" -t "$IMAGE:latest" .
+
+      - name: Push Docker image
+        shell: bash
+        env:
+          YC_IMAGE_REGISTRY_ID: ${{ secrets.YC_IMAGE_REGISTRY_ID }}
+          SERVERLESS_CONTAINER_NAME: ${{ secrets.SERVERLESS_CONTAINER_NAME }}
+        run: |
+          IMAGE="cr.yandex/${YC_IMAGE_REGISTRY_ID}/${SERVERLESS_CONTAINER_NAME}"
+          docker push "$IMAGE:${GITHUB_SHA}"
+          docker push "$IMAGE:latest"
+
+      - name: Deploy Serverless Container revision
+        shell: bash
+        env:
+          SERVERLESS_CONTAINER_NAME: ${{ secrets.SERVERLESS_CONTAINER_NAME }}
+          SERVICE_ACCOUNT_ID: ${{ secrets.SERVICE_ACCOUNT_ID }}
+          YC_IMAGE_REGISTRY_ID: ${{ secrets.YC_IMAGE_REGISTRY_ID }}
+          # Bot & App ENV
+          TELEGRAM_APITOKEN: ${{ secrets.TELEGRAM_APITOKEN }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_NAME: ${{ secrets.GOOGLE_SHEET_NAME }}
+          TIMEZONE: ${{ secrets.TIMEZONE }}
+          ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
+          # OCR/Photo flow ENV
+          ROI_ODO: ${{ secrets.ROI_ODO }}
+          ROI_FUEL: ${{ secrets.ROI_FUEL }}
+          FUEL_BARS: ${{ secrets.FUEL_BARS }}
+          LITERS_PER_BAR: ${{ secrets.LITERS_PER_BAR }}
+          THRESH_FUEL: ${{ secrets.THRESH_FUEL }}
+          MIN_CONFIDENCE: ${{ secrets.MIN_CONFIDENCE }}
+          OCR_LANG: ${{ secrets.OCR_LANG }}
+          OCR_PSM: ${{ secrets.OCR_PSM }}
+        run: |
+          IMAGE="cr.yandex/${YC_IMAGE_REGISTRY_ID}/${SERVERLESS_CONTAINER_NAME}:latest"
+          yc serverless container revision deploy \
+            --container-name "$SERVERLESS_CONTAINER_NAME" \
+            --image "$IMAGE" \
+            --service-account-id "$SERVICE_ACCOUNT_ID" \
+            --environment="TELEGRAM_APITOKEN=${TELEGRAM_APITOKEN},TELEGRAM_BOT_TOKEN=${TELEGRAM_APITOKEN},GOOGLE_SA_JSON_PATH=./service_account.json,GOOGLE_SHEET_ID=${GOOGLE_SHEET_ID},GOOGLE_SHEET_NAME=${GOOGLE_SHEET_NAME},TIMEZONE=${TIMEZONE},ADMIN_IDS=${ADMIN_IDS},FUEL_BARS=${FUEL_BARS},LITERS_PER_BAR=${LITERS_PER_BAR},THRESH_FUEL=${THRESH_FUEL},MIN_CONFIDENCE=${MIN_CONFIDENCE},ROI_ODO=${ROI_ODO},ROI_FUEL=${ROI_FUEL},OCR_LANG=${OCR_LANG},OCR_PSM=${OCR_PSM}" \
+            --core-fraction 50 \
+            --memory 1GB \
+            --execution-timeout 300s \
+            --concurrency 8
+
+      - name: Set Telegram webhook (optional)
+        if: ${{ secrets.SERVERLESS_APIGW_URL != '' }}
+        shell: bash
+        env:
+          TELEGRAM_APITOKEN: ${{ secrets.TELEGRAM_APITOKEN }}
+          SERVERLESS_APIGW_URL: ${{ secrets.SERVERLESS_APIGW_URL }}
+        run: |
+          curl --request POST --url "https://api.telegram.org/bot${TELEGRAM_APITOKEN}/setWebhook" \
+            --header 'content-type: application/json' \
+            --data "{\"url\": \"${SERVERLESS_APIGW_URL}\"}"
+
+
