@@ -219,3 +219,4 @@ project/
 # Auto-deploy trigger
 # Deploy trigger Tue Sep 23 17:41:34 MSK 2025
 # Deploy trigger after registry permissions Tue Sep 23 17:44:10 MSK 2025
+# Deploy trigger after serverless permissions Tue Sep 23 17:55:09 MSK 2025
