@@ -104,7 +104,7 @@ jobs:
             --concurrency 8
 
       - name: Set Telegram webhook (optional)
-        if: ${{ secrets.SERVERLESS_APIGW_URL }}
+        if: secrets.SERVERLESS_APIGW_URL != ''
         shell: bash
         env:
           TELEGRAM_APITOKEN: ${{ secrets.TELEGRAM_APITOKEN }}
