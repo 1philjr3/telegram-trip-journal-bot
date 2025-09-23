@@ -50,11 +50,9 @@ sheets_client = GoogleSheetsClient(
 )
 
 # ==== Фото-поток: OCR одометра и делений топлива ====
-try:
-    from services.extract_panel import extract_from_image, PanelReading
-except Exception:
-    extract_from_image = None
-    PanelReading = None
+# Временно отключено для отладки
+extract_from_image = None
+PanelReading = None
 
 def get_env_roi(name: str, default: str) -> tuple:
     val = os.getenv(name, default)
