@@ -58,7 +58,7 @@ jobs:
           SERVERLESS_CONTAINER_NAME: ${{ secrets.SERVERLESS_CONTAINER_NAME }}
         run: |
           IMAGE="cr.yandex/${YC_IMAGE_REGISTRY_ID}/${SERVERLESS_CONTAINER_NAME}"
-          docker build -t "$IMAGE:${GITHUB_SHA}" -t "$IMAGE:latest" .
+          docker build --no-cache -t "$IMAGE:${GITHUB_SHA}" -t "$IMAGE:latest" .
 
       - name: Push Docker image
         shell: bash

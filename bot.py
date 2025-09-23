@@ -1198,7 +1198,7 @@ async def main():
     logger.info("Запуск Telegram-бота...")
     
     # Проверяем наличие необходимых файлов и переменных
-    required_env_vars = ["TELEGRAM_BOT_TOKEN", "GOOGLE_SHEET_ID"]
+    required_env_vars = ["TELEGRAM_APITOKEN", "GOOGLE_SHEET_ID"]
     missing_vars = [var for var in required_env_vars if not os.getenv(var)]
     
     if missing_vars:
