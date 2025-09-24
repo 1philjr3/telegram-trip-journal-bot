@@ -52,21 +52,16 @@ async def initialize_bot_if_needed() -> None:
 
 async def handle_telegram_update(update_dict: Dict[str, Any]) -> None:
     """Обрабатывает обновление от Telegram"""
-    try:
-        await initialize_bot_if_needed()
+    await initialize_bot_if_needed()
 
-        if dp is None or bot is None:
-            app_logger.error("Бот не инициализирован")
-            return
+    if dp is None or bot is None:
+        app_logger.error("Бот не инициализирован")
+        return
 
-        from aiogram.types import Update
-        update = Update.model_validate(update_dict)
+    from aiogram.types import Update
+    update = Update.model_validate(update_dict)
 
-        await dp.feed_update(bot, update)
-
-    except Exception as e:
-        app_logger.error(f"Ошибка при обработке обновления: {e}")
-        raise
+    await dp.feed_update(bot, update)
 
 
 @app.on_event("startup")
@@ -80,7 +75,8 @@ async def webhook_handler(request: Request):
     """Обработчик webhook от Telegram"""
     try:
         update_data = await request.json()
-        asyncio.create_task(handle_telegram_update(update_data))
+        # Синхронная обработка вместо фоновой задачи — важна для serverless окружения
+        await handle_telegram_update(update_data)
         return JSONResponse(content={"ok": True})
     except json.JSONDecodeError:
         app_logger.error("Ошибка парсинга JSON")
