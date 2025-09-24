@@ -46,10 +46,12 @@ jobs:
 
     - name: Deploy to Serverless Container
       run: |
+        SA_ID=$(jq -r '.service_account_id' sa-key.json)
+        echo "Using SA_ID=$SA_ID"
         yc serverless container revision deploy \
           --container-name ${{ secrets.SERVERLESS_CONTAINER_NAME }} \
           --image $YC_REGISTRY/${{ secrets.YC_IMAGE_REGISTRY_ID }}/$IMAGE_NAME:latest \
-          --service-account-id ${{ secrets.SERVICE_ACCOUNT_ID }} \
+          --service-account-id "$SA_ID" \
           --environment="TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_APITOKEN }},GOOGLE_SA_JSON_PATH=./service_account.json,GOOGLE_SHEET_ID=${{ secrets.GOOGLE_SHEET_ID }},GOOGLE_SHEET_NAME=${{ secrets.GOOGLE_SHEET_NAME }},TIMEZONE=${{ secrets.TIMEZONE }},ADMIN_IDS=${{ secrets.ADMIN_IDS }}" \
           --core-fraction 50 \
           --memory 2GB \
