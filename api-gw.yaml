@@ -10,7 +10,7 @@ paths:
       description: Принимает обновления от Telegram
       x-yc-apigateway-integration:
         type: serverless_containers
-        container_id: bba3kh6aui7hgca21262
+        container_id: bbaoduab97herbgl2cgq
         service_account_id: ajepfs5v8fm8825ke2at
       responses:
         '200':
@@ -33,7 +33,7 @@ paths:
       description: Проверка состояния сервиса
       x-yc-apigateway-integration:
         type: serverless_containers
-        container_id: bba3kh6aui7hgca21262
+        container_id: bbaoduab97herbgl2cgq
         service_account_id: ajepfs5v8fm8825ke2at
       responses:
         '200':

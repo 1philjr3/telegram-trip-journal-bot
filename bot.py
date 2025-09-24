@@ -17,6 +17,7 @@ from models import TripEntry
 from sheets_client import GoogleSheetsClient
 from users_repo import UsersRepository
 from utils_time import TimeUtils
+from fuel_detector import fuel_detector
 
 
 # Загружаем переменные окружения
@@ -55,6 +56,8 @@ class TripStates(StatesGroup):
     waiting_odometer_start = State()
     waiting_end_time = State()
     waiting_odometer_end = State()
+    waiting_fuel_photo = State()
+    waiting_fuel_confirmation = State()
     waiting_project = State()
     waiting_address = State()
     waiting_comment = State()
@@ -407,24 +410,146 @@ async def handle_odometer_end(message: Message, state: FSMContext):
         distance_km = odometer_end - odometer_start
         
         keyboard = InlineKeyboardBuilder()
-        keyboard.button(text="⏭️ Пропустить", callback_data="skip_project")
+        keyboard.button(text="⏭️ Пропустить фото", callback_data="skip_fuel_photo")
         keyboard.button(text="❌ Отмена", callback_data="cancel")
         keyboard.adjust(1, 1)
         
         await message.answer(
             f"✅ Одометр окончания: <b>{odometer_end:,} км</b>\n"
             f"📏 Пробег: <b>{distance_km:,} км</b>\n\n"
-            f"🏗️ Введите название проекта (необязательно):",
+            f"⛽ Теперь сфотографируйте панель приборов с уровнем топлива:",
             reply_markup=keyboard.as_markup(),
             parse_mode="HTML"
         )
         
-        await state.set_state(TripStates.waiting_project)
+        await state.set_state(TripStates.waiting_fuel_photo)
         
     except ValueError:
         await message.answer(
             "❌ Введите корректное число километров (целое положительное число):"
         )
+
+
+@dp.callback_query(F.data == "skip_fuel_photo", StateFilter(TripStates.waiting_fuel_photo))
+async def callback_skip_fuel_photo(callback: CallbackQuery, state: FSMContext):
+    """Пропуск фото топлива"""
+    await callback.answer()
+    await state.update_data(fuel_liters=None)
+    await ask_project(callback.message, state, edit_message=True)
+
+
+@dp.message(F.photo, StateFilter(TripStates.waiting_fuel_photo))
+async def handle_fuel_photo(message: Message, state: FSMContext):
+    """Обработчик фото уровня топлива"""
+    await message.answer("🔄 Обрабатываю фото...")
+    
+    try:
+        # Получаем самое большое фото
+        photo = message.photo[-1]
+        
+        # Скачиваем фото
+        file_info = await bot.get_file(photo.file_id)
+        file_data = await bot.download_file(file_info.file_path)
+        
+        # Детектируем уровень топлива
+        bars_count, fuel_liters, status_message = fuel_detector.detect_fuel_level(file_data.read())
+        
+        if bars_count is None:
+            await message.answer(
+                f"{status_message}\n\n"
+                "Попробуйте сфотографировать панель приборов ещё раз или пропустите этот шаг."
+            )
+            return
+        
+        # Сохраняем результат в состояние
+        await state.update_data(fuel_liters=fuel_liters, fuel_bars=bars_count)
+        
+        # Показываем результат с кнопками
+        await show_fuel_confirmation(message, state, bars_count, fuel_liters, status_message)
+        
+    except Exception as e:
+        logger.error(f"Ошибка при обработке фото топлива: {e}")
+        await message.answer(
+            "❌ Ошибка при обработке фото.\n\n"
+            "Попробуйте ещё раз или пропустите этот шаг."
+        )
+
+
+async def show_fuel_confirmation(message: Message, state: FSMContext, bars_count: int, fuel_liters: float, status_message: str):
+    """Показывает результат детекции и кнопки подтверждения"""
+    
+    keyboard = InlineKeyboardBuilder()
+    keyboard.button(text="✅ Подтвердить", callback_data="confirm_fuel")
+    keyboard.button(text="📷 Переснять", callback_data="retake_fuel_photo")
+    keyboard.button(text="⏭️ Пропустить", callback_data="skip_fuel_result")
+    keyboard.button(text="❌ Отмена", callback_data="cancel")
+    keyboard.adjust(1, 2, 1)
+    
+    text = (
+        f"{status_message}\n\n"
+        f"📊 <b>Результат детекции:</b>\n"
+        f"📏 Найдено палочек: <b>{bars_count}</b>\n"
+        f"⛽ Количество топлива: <b>{fuel_liters:.1f} л</b>\n\n"
+        f"<i>Подтвердите результат или переснимите фото:</i>"
+    )
+    
+    await message.answer(
+        text,
+        reply_markup=keyboard.as_markup(),
+        parse_mode="HTML"
+    )
+    
+    await state.set_state(TripStates.waiting_fuel_confirmation)
+
+
+@dp.callback_query(F.data == "confirm_fuel", StateFilter(TripStates.waiting_fuel_confirmation))
+async def callback_confirm_fuel(callback: CallbackQuery, state: FSMContext):
+    """Подтверждение результата детекции топлива"""
+    await callback.answer()
+    await ask_project(callback.message, state, edit_message=True)
+
+
+@dp.callback_query(F.data == "retake_fuel_photo", StateFilter(TripStates.waiting_fuel_confirmation))
+async def callback_retake_fuel_photo(callback: CallbackQuery, state: FSMContext):
+    """Переснять фото топлива"""
+    await callback.answer()
+    
+    keyboard = InlineKeyboardBuilder()
+    keyboard.button(text="⏭️ Пропустить фото", callback_data="skip_fuel_photo")
+    keyboard.button(text="❌ Отмена", callback_data="cancel")
+    keyboard.adjust(1, 1)
+    
+    await callback.message.edit_text(
+        "⛽ Сфотографируйте панель приборов с уровнем топлива:",
+        reply_markup=keyboard.as_markup()
+    )
+    
+    await state.set_state(TripStates.waiting_fuel_photo)
+
+
+@dp.callback_query(F.data == "skip_fuel_result", StateFilter(TripStates.waiting_fuel_confirmation))
+async def callback_skip_fuel_result(callback: CallbackQuery, state: FSMContext):
+    """Пропустить результат детекции топлива"""
+    await callback.answer()
+    await state.update_data(fuel_liters=None)
+    await ask_project(callback.message, state, edit_message=True)
+
+
+async def ask_project(message: Message, state: FSMContext, edit_message: bool = False):
+    """Запрашивает название проекта"""
+    keyboard = InlineKeyboardBuilder()
+    keyboard.button(text="⏭️ Пропустить", callback_data="skip_project")
+    keyboard.button(text="❌ Отмена", callback_data="cancel")
+    keyboard.adjust(1, 1)
+    
+    text = "🏗️ Введите название проекта (необязательно):"
+    
+    if edit_message:
+        await message.edit_text(text, reply_markup=keyboard.as_markup())
+    else:
+        await message.answer(text, reply_markup=keyboard.as_markup())
+    
+    await state.set_state(TripStates.waiting_project)
 
 
 @dp.callback_query(F.data == "skip_project", StateFilter(TripStates.waiting_project))
@@ -516,6 +641,7 @@ async def show_confirmation(message: Message, state: FSMContext):
     project = data.get('project', '')
     address = data.get('address', '')
     comment = data['comment']
+    fuel_liters = data.get('fuel_liters')
     
     # Форматируем для отображения
     start_display = time_utils.format_datetime_for_display(start_time)
@@ -532,6 +658,9 @@ async def show_confirmation(message: Message, state: FSMContext):
         f"🛣️ <b>Одометр окончание:</b> {odometer_end:,} км\n"
         f"📏 <b>Пробег:</b> {distance_km:,} км\n"
     )
+    
+    if fuel_liters is not None:
+        confirmation_text += f"⛽ <b>Топливо:</b> {fuel_liters:.1f} л\n"
     
     if project:
         confirmation_text += f"🏗️ <b>Проект:</b> {project}\n"
@@ -580,6 +709,7 @@ async def callback_confirm_save(callback: CallbackQuery, state: FSMContext):
         odometer_start=data['odometer_start'],
         odometer_end=data['odometer_end'],
         distance_km=data['odometer_end'] - data['odometer_start'],
+        fuel_liters=data.get('fuel_liters'),
         engineer=user.full_name,
         project=data.get('project', ''),
         address=data.get('address', ''),

@@ -19,6 +19,7 @@ class TripEntry(BaseModel):
     odometer_start: int
     odometer_end: int
     distance_km: int
+    fuel_liters: Optional[float] = None
     engineer: str
     project: Optional[str] = ""
     address: Optional[str] = ""
@@ -48,6 +49,7 @@ class TripEntry(BaseModel):
             str(self.odometer_start),
             str(self.odometer_end),
             str(self.distance_km),
+            str(self.fuel_liters) if self.fuel_liters is not None else "",
             self.engineer,
             self.project or "",
             self.address or "",
@@ -67,6 +69,7 @@ class TripEntry(BaseModel):
             "odometer_start",
             "odometer_end",
             "distance_km",
+            "fuel_liters",
             "engineer",
             "project",
             "address",
