@@ -29,7 +29,7 @@ jobs:
 
     - name: Configure Yandex Cloud CLI
       run: |
-        echo '${{ secrets.YC_SA_KEY }}' > sa-key.json
+        echo '${{ secrets.YC_SA_KEY_JSON }}' > sa-key.json
         yc config profile create github-actions
         yc config set service-account-key sa-key.json
         yc config set cloud-id ${{ secrets.YC_CLOUD_ID }}
@@ -41,16 +41,16 @@ jobs:
 
     - name: Build and push Docker image
       run: |
-        IMAGE_TAG=$YC_REGISTRY/${{ secrets.YC_REGISTRY_ID }}/$IMAGE_NAME:latest
+        IMAGE_TAG=$YC_REGISTRY/${{ secrets.YC_IMAGE_REGISTRY_ID }}/$IMAGE_NAME:latest
         docker buildx build --platform linux/amd64 --push -t $IMAGE_TAG .
 
     - name: Deploy to Serverless Container
       run: |
         yc serverless container revision deploy \
-          --container-name $IMAGE_NAME \
-          --image $YC_REGISTRY/${{ secrets.YC_REGISTRY_ID }}/$IMAGE_NAME:latest \
-          --service-account-id ${{ secrets.YC_SERVICE_ACCOUNT_ID }} \
-          --environment="TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }},GOOGLE_SA_JSON_PATH=./service_account.json,GOOGLE_SHEET_ID=${{ secrets.GOOGLE_SHEET_ID }},GOOGLE_SHEET_NAME=${{ secrets.GOOGLE_SHEET_NAME }},TIMEZONE=Europe/Moscow,ADMIN_IDS=${{ secrets.ADMIN_IDS }}" \
+          --container-name ${{ secrets.SERVERLESS_CONTAINER_NAME }} \
+          --image $YC_REGISTRY/${{ secrets.YC_IMAGE_REGISTRY_ID }}/$IMAGE_NAME:latest \
+          --service-account-id ${{ secrets.SERVICE_ACCOUNT_ID }} \
+          --environment="TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_APITOKEN }},GOOGLE_SA_JSON_PATH=./service_account.json,GOOGLE_SHEET_ID=${{ secrets.GOOGLE_SHEET_ID }},GOOGLE_SHEET_NAME=${{ secrets.GOOGLE_SHEET_NAME }},TIMEZONE=${{ secrets.TIMEZONE }},ADMIN_IDS=${{ secrets.ADMIN_IDS }}" \
           --core-fraction 50 \
           --memory 2GB \
           --execution-timeout 300s
@@ -58,11 +58,11 @@ jobs:
     - name: Update API Gateway webhook
       run: |
         # Получаем URL API Gateway
-        APIGW_URL=$(yc serverless api-gateway get --name $IMAGE_NAME --format json | jq -r '.domain')
+        APIGW_URL=$(yc serverless api-gateway get --name ${{ secrets.SERVERLESS_CONTAINER_NAME }} --format json | jq -r '.domain')
         WEBHOOK_URL="https://${APIGW_URL}"
         
         # Обновляем webhook в Telegram
-        curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/setWebhook" \
+        curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_APITOKEN }}/setWebhook" \
           -H "Content-Type: application/json" \
           -d "{\"url\": \"${WEBHOOK_URL}\"}"
 
