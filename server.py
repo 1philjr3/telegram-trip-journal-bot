@@ -13,6 +13,8 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 import uvicorn
 from dotenv import load_dotenv
+import urllib.parse
+import urllib.request
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -89,6 +91,27 @@ async def webhook_handler(request: Request):
 @app.get("/health")
 async def health_check():
     return JSONResponse(content={"status": "healthy", "bot_initialized": bot_initialized})
+
+
+@app.get("/test_send")
+async def test_send():
+    """Отправляет тестовое сообщение админу для проверки токена и сети"""
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    admin_ids = os.getenv("ADMIN_IDS", "").split(",")
+    chat_id = admin_ids[0].strip() if admin_ids and admin_ids[0].strip() else None
+    if not token or not chat_id:
+        return JSONResponse(status_code=500, content={"ok": False, "error": "Missing TELEGRAM_BOT_TOKEN or ADMIN_IDS"})
+    try:
+        params = urllib.parse.urlencode({
+            "chat_id": chat_id,
+            "text": "Ping from /test_send"
+        })
+        url = f"https://api.telegram.org/bot{token}/sendMessage?{params}"
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            body = resp.read().decode("utf-8")
+        return JSONResponse(content={"ok": True, "response": json.loads(body)})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
 
 @app.get("/")
